@@ -10,11 +10,34 @@ from qiskit.circuit.library import SwapGate, UnitaryGate, iSwapGate, CXGate, UGa
 from qiskit.quantum_info import Operator
 from qiskit.transpiler import CouplingMap, Target, InstructionProperties
 from qiskit.transpiler.basepasses import TransformationPass
-from qiskit.transpiler.passes import SabreSwap
-
+from qiskit.transpiler.passes import (
+    SabreSwap, HighLevelSynthesis, UnrollCustomDefinitions,
+    BasisTranslator, Collect2qBlocks, ConsolidateBlocks,
+)
+from qiskit.circuit.equivalence_library import SessionEquivalenceLibrary
 from .cost import decomp_cost, SWAP_MATRIX
 from .mirror import accept_mirror
 
+
+def make_unroll_consolidate():
+    """
+    Standard preprocessing pass sequence for MIRAGE.
+
+    Decomposes high-level gates (qft, permutation, ccircuit, etc.)
+    down to primitive u/cx/swap gates, then consolidates consecutive
+    2Q gates on the same qubit pair into single UnitaryGate nodes.
+    This ensures the router sees only bare 2Q unitaries, which is
+    what MIRAGE's mirror pass and decomposition expect.
+    """
+    return [
+        HighLevelSynthesis(),
+        UnrollCustomDefinitions(SessionEquivalenceLibrary,
+                                basis_gates=["u", "cx", "swap"]),
+        BasisTranslator(SessionEquivalenceLibrary,
+                        target_basis=["u", "cx", "swap"]),
+        Collect2qBlocks(),
+        ConsolidateBlocks(),
+    ]
 
 def build_target_from_fidelities(
     coupling_map: CouplingMap,
@@ -232,6 +255,81 @@ class MirageSwap(TransformationPass):
                     )
                     dag.remove_op_node(node)
                     break  # this SWAP is consumed; move to next SWAP node
+
+        return dag
+
+    def _mirror_pass_extended(self, dag: DAGCircuit) -> DAGCircuit:
+        """
+        Extended mirror pass that can absorb non-adjacent SWAPs.
+        Tracks qubit permutation state through the circuit to identify
+        SWAPs whose permutation effect reaches a later gate intact.
+        """
+        aggression = (
+            self.forced_aggression
+            if self.forced_aggression is not None
+            else 2
+        )
+
+        # pending_swaps[frozenset({a,b})] = swap_node
+        # A SWAP is pending on (a,b) until a gate consumes qubits a or b
+        pending_swaps: dict[frozenset, DAGOpNode] = {}
+
+        for node in list(dag.topological_op_nodes()):
+            if isinstance(node.op, SwapGate):
+                qpair = frozenset(node.qargs)
+                # If there's already a pending SWAP on this pair,
+                # two SWAPs cancel — remove both
+                if qpair in pending_swaps:
+                    dag.remove_op_node(pending_swaps[qpair])
+                    dag.remove_op_node(node)
+                    del pending_swaps[qpair]
+                else:
+                    pending_swaps[qpair] = node
+
+            elif len(node.qargs) == 2:
+                qpair = frozenset(node.qargs)
+
+                if qpair in pending_swaps:
+                    # There's a pending SWAP on exactly this qubit pair
+                    # Check if mirror is beneficial
+                    try:
+                        U = Operator(node.op).data
+                    except Exception:
+                        # Can't get unitary — consume the pending SWAP
+                        # since this gate uses these qubits
+                        del pending_swaps[qpair]
+                        continue
+
+                    cost_u = decomp_cost(U)
+                    cost_m = decomp_cost(SWAP_MATRIX @ U)
+
+                    if accept_mirror(cost_u, cost_m, aggression):
+                        # Absorb the SWAP into the mirror gate
+                        dag.substitute_node(
+                            node,
+                            UnitaryGate(SWAP_MATRIX @ U, check_input=False),
+                            inplace=True,
+                        )
+                        dag.remove_op_node(pending_swaps[qpair])
+                    del pending_swaps[qpair]
+
+                else:
+                    # This gate uses qubits that may have pending SWAPs
+                    # on other pairs — invalidate any pending SWAP that
+                    # involves either qubit of this gate
+                    used = set(node.qargs)
+                    to_remove = [
+                        pair for pair in pending_swaps
+                        if pair & used  # overlapping qubits
+                    ]
+                    for pair in to_remove:
+                        del pending_swaps[pair]
+
+            elif len(node.qargs) == 1:
+                # 1Q gates don't consume SWAP permutations —
+                # a pending SWAP on (a,b) survives a 1Q gate on a
+                # because the SWAP hasn't been "used" yet
+                pass
 
         return dag
 
