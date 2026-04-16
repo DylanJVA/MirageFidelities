@@ -16,44 +16,59 @@ from finesse import (
 from finesse.routing import route
 
 # ── Topology ──────────────────────────────────────────────────────────────────
-n = 32
-F_square_ring      = np.zeros((n, n))
-F_square_ring_diag = np.zeros((n, n))
-F_square_ring_full = np.zeros((n, n))
-for i in range(n):
-    if i < n/2 - 1:
-        F_square_ring[i,i+1]      = F_square_ring[i+1,i]      = 0.996
-        F_square_ring_diag[i,i+1] = F_square_ring_diag[i+1,i] = 0.993
-        F_square_ring_full[i,i+1] = F_square_ring_full[i+1,i] = 0.993
-        F_square_ring_diag[i, int(n/2)+i+1] = F_square_ring_diag[int(n/2)+i+1, i] = 0.994
-        F_square_ring_full[i, int(n/2)+i+1] = F_square_ring_full[int(n/2)+i+1, i] = 0.975
-        if i > 0:
-            F_square_ring_full[i, int(n/2)+i-1] = F_square_ring_full[int(n/2)+i-1, i] = 0.994
-        if i & 2 == 0:
-            F_square_ring[i,int(n/2)+i]      = F_square_ring[int(n/2)+i,i]      = .995
-            F_square_ring_diag[i,int(n/2)+i] = F_square_ring_diag[int(n/2)+i,i] = .985
-            F_square_ring_full[i,int(n/2)+i] = F_square_ring_full[int(n/2)+i,i] = .977
-        else:
-            F_square_ring[i,int(n/2)+i]      = F_square_ring[int(n/2)+i,i]      = .995
-            F_square_ring_diag[i,int(n/2)+i] = F_square_ring_diag[int(n/2)+i,i] = .987
-            F_square_ring_full[i,int(n/2)+i] = F_square_ring_full[int(n/2)+i,i] = .991
-    elif i >= n//2 and i < n - 1:
-        F_square_ring[i,i+1]      = F_square_ring[i+1,i]      = 0.994
-        F_square_ring_diag[i,i+1] = F_square_ring_diag[i+1,i] = 0.986
-        F_square_ring_full[i,i+1] = F_square_ring_full[i+1,i] = 0.989
+def build_topology(wraparound=False):
+    n = 32
+    F_ring      = np.zeros((n, n))
+    F_diag      = np.zeros((n, n))
+    F_full      = np.zeros((n, n))
+    for i in range(n):
+        if i < n/2 - 1:
+            F_ring[i,i+1]      = F_ring[i+1,i]      = 0.996
+            F_diag[i,i+1]      = F_diag[i+1,i]      = 0.993
+            F_full[i,i+1]      = F_full[i+1,i]      = 0.993
+            F_diag[i, int(n/2)+i+1] = F_diag[int(n/2)+i+1, i] = 0.994
+            F_full[i, int(n/2)+i+1] = F_full[int(n/2)+i+1, i] = 0.975
+            if i > 0:
+                F_full[i, int(n/2)+i-1] = F_full[int(n/2)+i-1, i] = 0.994
+            if i & 2 == 0:
+                F_ring[i,int(n/2)+i] = F_ring[int(n/2)+i,i] = .995
+                F_diag[i,int(n/2)+i] = F_diag[int(n/2)+i,i] = .985
+                F_full[i,int(n/2)+i] = F_full[int(n/2)+i,i] = .977
+            else:
+                F_ring[i,int(n/2)+i] = F_ring[int(n/2)+i,i] = .995
+                F_diag[i,int(n/2)+i] = F_diag[int(n/2)+i,i] = .987
+                F_full[i,int(n/2)+i] = F_full[int(n/2)+i,i] = .991
+        elif i >= n//2 and i < n - 1:
+            F_ring[i,i+1] = F_ring[i+1,i] = 0.994
+            F_diag[i,i+1] = F_diag[i+1,i] = 0.986
+            F_full[i,i+1] = F_full[i+1,i] = 0.989
 
-cm_square_ring      = CouplingMap([[i,j] for i in range(n) for j in range(n) if F_square_ring[i,j]      > 0])
-cm_square_ring_diag = CouplingMap([[i,j] for i in range(n) for j in range(n) if F_square_ring_diag[i,j] > 0])
-cm_square_ring_full = CouplingMap([[i,j] for i in range(n) for j in range(n) if F_square_ring_full[i,j] > 0])
+    if wraparound:
+        # connect tops
+        F_ring[0,n//2-1]      = F_ring[n//2-1,0]      = 0.996
+        F_diag[0,n//2-1]      = F_diag[n//2-1,0]      = 0.993
+        F_full[0,n//2-1]      = F_full[n//2-1,0]      = 0.993
+        # connect bottoms
+        F_ring[n//2,n-1]      = F_ring[n-1,n//2]      = 0.994
+        F_diag[n//2,n-1]      = F_diag[n-1,n//2]      = 0.986
+        F_full[n//2,n-1]      = F_full[n-1,n//2]      = 0.989
+        # first diagonal closing edge
+        F_diag[n//2,n-1]      = F_diag[n-1,n//2]      = 0.994
+        F_full[n//2,n-1]      = F_full[n-1,n//2]      = 0.975
+        # last diagonal closing edge
+        F_full[0,n-1]         = F_full[n-1,0]         = 0.994
+
+    cm_ring = CouplingMap([[i,j] for i in range(n) for j in range(n) if F_ring[i,j] > 0])
+    cm_diag = CouplingMap([[i,j] for i in range(n) for j in range(n) if F_diag[i,j] > 0])
+    cm_full = CouplingMap([[i,j] for i in range(n) for j in range(n) if F_full[i,j] > 0])
+    return [
+        ("square_ring",      cm_ring, F_ring),
+        ("square_ring_diag", cm_diag, F_diag),
+        ("square_ring_full", cm_full, F_full),
+    ]
 
 # ── Configs ───────────────────────────────────────────────────────────────────
 EDGE_COST_W = 0.5
-
-devices = [
-    ("square_ring",      cm_square_ring,      F_square_ring),
-    ("square_ring_diag", cm_square_ring_diag, F_square_ring_diag),
-    ("square_ring_full", cm_square_ring_full, F_square_ring_full),
-]
 
 configs = [
     ("Standard SABRE",  dict(mode="sabre", aggression=0)),
@@ -166,20 +181,28 @@ ext_large = [
 # ── Run ───────────────────────────────────────────────────────────────────────
 import argparse
 parser = argparse.ArgumentParser()
-parser.add_argument("--test",   action="store_true", help="Smoke test: 1 seed, 1 circuit per suite")
-parser.add_argument("--suite",  choices=["redqueen", "ext_small", "ext_large", "all"], default="all",
+parser.add_argument("--test",       action="store_true", help="Smoke test: 1 seed, 1 circuit per suite")
+parser.add_argument("--suite",      choices=["redqueen", "ext_small", "ext_large", "all"], default="all",
                     help="Which suite to run (default: all)")
-parser.add_argument("--output",  default=None,
+parser.add_argument("--output",     default=None,
                     help="Output filename (without .csv). Default: results_{suite}. "
                          "Only valid when running a single suite.")
-parser.add_argument("--circuit", default=None,
+parser.add_argument("--circuit",    default=None,
                     help="Run only this circuit (e.g. ising_n26). Must be used with --suite.")
+parser.add_argument("--seeds",      type=int, default=None,
+                    help="Override number of seeds (default: per-suite value)")
+parser.add_argument("--wraparound", action="store_true",
+                    help="Add wraparound endpoint edges to the topology")
 args = parser.parse_args()
 
 if args.output and args.suite == "all":
     parser.error("--output can only be used with a specific --suite, not --suite all")
 if args.circuit and args.suite == "all":
     parser.error("--circuit requires a specific --suite")
+
+devices = build_topology(wraparound=args.wraparound)
+if args.wraparound:
+    print("Topology: wraparound enabled")
 
 suites = {
     "redqueen":  (redqueen_circuits, 20),
@@ -190,6 +213,8 @@ to_run = ["redqueen", "ext_small", "ext_large"] if args.suite == "all" else [arg
 
 for name in to_run:
     circuits_for_suite, n_seeds = suites[name]
+    if args.seeds is not None:
+        n_seeds = args.seeds
     if args.circuit:
         circuits_for_suite = [(n, s) for n, s in circuits_for_suite if n == args.circuit]
         if not circuits_for_suite:
@@ -199,7 +224,7 @@ for name in to_run:
         n_seeds = 1
         print(f"=== TEST: {name} (1 seed, 1 circuit) ===")
     else:
-        print(f"=== {name} (n_seeds={n_seeds}) ===")
+        print(f"=== {name} (n_seeds={n_seeds}{', wraparound' if args.wraparound else ''}) ===")
     out_path = f"{args.output}.csv" if args.output else None
     df = run_circuits(circuits_for_suite, n_seeds=n_seeds, label=name, out_path=out_path)
     print(df.groupby(["device","config"])[["swaps","depth","lf_cost"]].mean().round(2))
