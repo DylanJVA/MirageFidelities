@@ -57,14 +57,103 @@ def build_topology(wraparound=False):
         F_full[n//2,n-1]      = F_full[n-1,n//2]      = 0.975
         # last diagonal closing edge
         F_full[0,n-1]         = F_full[n-1,0]         = 0.994
+        
+    F_pentagon = np.zeros((38,38))
+    
+    F_pentagon[0,1]=F_pentagon[1,0]=0.96
+    F_pentagon[1,2]=F_pentagon[2,1]=.962
+    F_pentagon[2,3]=F_pentagon[3,2]=.968
+    
+    F_pentagon[3,4]=F_pentagon[4,3]=0.96
+    F_pentagon[4,5]=F_pentagon[5,4]=.962
+    F_pentagon[5,6]=F_pentagon[6,5]=.968
+    
+    F_pentagon[6,7]=F_pentagon[7,6]=0.96
+    F_pentagon[7,8]=F_pentagon[8,7]=.962
+    F_pentagon[8,9]=F_pentagon[9,8]=.968
+    
+    F_pentagon[9,10]=F_pentagon[10,9]=0.96
+    F_pentagon[10,11]=F_pentagon[11,10]=.962
+    F_pentagon[11,12]=F_pentagon[12,11]=.968
+    
+    F_pentagon[12,13]=F_pentagon[13,12]=0.96
+    F_pentagon[13,14]=F_pentagon[14,13]=.962
+    F_pentagon[14,15]=F_pentagon[15,14]=.968
+    
+    
+    F_pentagon[16,17]=F_pentagon[17,16]=0.968
+    F_pentagon[17,18]=F_pentagon[18,17]=.962
+    F_pentagon[18,19]=F_pentagon[19,18]=.96
+    
+    F_pentagon[19,20]=F_pentagon[20,19]=0.968
+    F_pentagon[20,21]=F_pentagon[21,20]=.962
+    F_pentagon[21,22]=F_pentagon[22,21]=.96
+    
+    F_pentagon[22,23]=F_pentagon[23,22]=0.968
+    F_pentagon[23,24]=F_pentagon[24,23]=.962
+    F_pentagon[24,25]=F_pentagon[25,24]=.96
+    
+    F_pentagon[25,26]=F_pentagon[26,25]=0.968
+    F_pentagon[26,27]=F_pentagon[27,26]=.962
+    F_pentagon[27,28]=F_pentagon[28,27]=.96
+    
+    F_pentagon[28,29]=F_pentagon[29,28]=0.968
+    F_pentagon[29,30]=F_pentagon[30,29]=.962
+    F_pentagon[30,31]=F_pentagon[31,30]=.96
+    
+    F_pentagon[16,1] = F_pentagon[1,16]=.98
+    F_pentagon[1,17] = F_pentagon[17,1] =.973
+    
+    F_pentagon[2,18] = F_pentagon[18,2]=.973
+    F_pentagon[3,18] = F_pentagon[18,3] =.98
+    
+    F_pentagon[4,19] = F_pentagon[19,4]=.98
+    F_pentagon[4,20] = F_pentagon[20,4] =.973
+    
+    F_pentagon[21,5] = F_pentagon[5,21]=.98
+    F_pentagon[21,6] = F_pentagon[6,21] =.973
+    
+    F_pentagon[7,22] = F_pentagon[22,7]=.973
+    F_pentagon[7,23] = F_pentagon[23,7] =.98
+    
+    F_pentagon[24,8] = F_pentagon[8,24]=.973
+    F_pentagon[24,9] = F_pentagon[9,24] =.98
+    
+    F_pentagon[10,25] = F_pentagon[25,10]=.98
+    F_pentagon[10,26] = F_pentagon[26,10] =.973
+    
+    F_pentagon[27,11] = F_pentagon[11,27]=.973
+    F_pentagon[27,12] = F_pentagon[12,27] =.98
+    
+    F_pentagon[13,28] = F_pentagon[28,13]=.98
+    F_pentagon[13,29] = F_pentagon[29,13] =.973
+    
+    F_pentagon[30,14] = F_pentagon[14,30]=.973
+    F_pentagon[30,15] = F_pentagon[15,30] =.98
+    
+    F_pentagon[14,32] = F_pentagon[32,14]=.968
+    F_pentagon[32,33] = F_pentagon[33,32] =.96
+    
+    F_pentagon[33,34] = F_pentagon[34,33] = .962
+    F_pentagon[31,36] = F_pentagon[36,31]=.968
+    F_pentagon[36,37] = F_pentagon[37,36] = .962
+    
+    F_pentagon[34,37] = F_pentagon[37,34]=.973
+    if wraparound:
+        F_pentagon[34,0] = F_pentagon[0,34] = .968
+        F_pentagon[37,16] = F_pentagon[16,37] = .96
+        F_pentagon[37,0] = F_pentagon[0,37] = .973
 
     cm_ring = CouplingMap([[i,j] for i in range(n) for j in range(n) if F_ring[i,j] > 0])
     cm_diag = CouplingMap([[i,j] for i in range(n) for j in range(n) if F_diag[i,j] > 0])
     cm_full = CouplingMap([[i,j] for i in range(n) for j in range(n) if F_full[i,j] > 0])
+    n_pent = 38
+    cm_pentagon = CouplingMap([[i,j] for i in range(38) for j in range(38) if F_pentagon[i,j] > 0])
     return [
         ("square_ring",      cm_ring, F_ring),
         ("square_ring_diag", cm_diag, F_diag),
         ("square_ring_full", cm_full, F_full),
+        ("pentagon_ring",    cm_pentagon, F_pentagon)
     ]
 
 # ── Configs ───────────────────────────────────────────────────────────────────
@@ -123,12 +212,18 @@ def run_circuits(circuit_list, n_seeds, label, out_path=None):
                     continue
                 dag_phys = apply_trivial_layout(qc, cm)
 
+            # Only use qubits that have at least one edge — isolated nodes
+            # (e.g. qubit 35 in pentagon_ring) cause the router to deadlock.
+            connected = sorted({q for edge in cm.get_edges() for q in edge})
+
             for cfg_name, kwargs in configs:
                 kw = dict(kwargs)
                 if cfg_name in FIDELITY_CONFIGS:
                     kw["fidelity_matrix"] = F
                 for seed in range(n_seeds):
-                    initial_cur = np.random.default_rng(seed + 10_000).permutation(n_phys).tolist()
+                    rng = np.random.default_rng(seed + 10_000)
+                    perm = rng.permutation(len(connected)).tolist()
+                    initial_cur = [connected[p] for p in perm]
                     with warnings.catch_warnings():
                         warnings.simplefilter("ignore")
                         routed, _, _ = route(
@@ -193,6 +288,9 @@ parser.add_argument("--seeds",      type=int, default=None,
                     help="Override number of seeds (default: per-suite value)")
 parser.add_argument("--wraparound", action="store_true",
                     help="Add wraparound endpoint edges to the topology")
+parser.add_argument("--topology",   default="all",
+                    help="Comma-separated topology names to run, or 'all' (default). "
+                         "Options: square_ring, square_ring_diag, square_ring_full, pentagon_ring")
 args = parser.parse_args()
 
 if args.output and args.suite == "all":
@@ -200,9 +298,17 @@ if args.output and args.suite == "all":
 if args.circuit and args.suite == "all":
     parser.error("--circuit requires a specific --suite")
 
-devices = build_topology(wraparound=args.wraparound)
+all_devices = build_topology(wraparound=args.wraparound)
+if args.topology == "all":
+    devices = all_devices
+else:
+    requested = {t.strip() for t in args.topology.split(",")}
+    devices = [(name, cm, F) for name, cm, F in all_devices if name in requested]
+    if not devices:
+        parser.error(f"No matching topologies found. Available: {[d[0] for d in all_devices]}")
 if args.wraparound:
     print("Topology: wraparound enabled")
+print(f"Running on topologies: {[d[0] for d in devices]}")
 
 suites = {
     "redqueen":  (redqueen_circuits, 20),
