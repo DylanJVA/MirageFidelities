@@ -1,4 +1,6 @@
 import copy
+import csv
+import os
 import warnings
 
 import numpy as np
@@ -73,11 +75,24 @@ def make_qaoa(n_qubits, p_layers):
     return qc
 
 # ── Benchmark runner ──────────────────────────────────────────────────────────
-def run_circuits(circuit_list, n_seeds, label):
+def run_circuits(circuit_list, n_seeds, label, out_path=None):
     """
     circuit_list: list of (name, QuantumCircuit | qasm_filename_str)
+    Writes rows to out_path (default: results_{label}.csv) as they complete.
     Returns a DataFrame.
     """
+    if out_path is None:
+        out_path = f"results_{label}.csv"
+    fieldnames = ["suite", "device", "circuit", "config", "seed", "swaps", "depth", "lf_cost"]
+
+    # Open in append mode so partial results survive interruption.
+    # Write header only if file is new/empty.
+    write_header = not os.path.exists(out_path) or os.path.getsize(out_path) == 0
+    out_file = open(out_path, "a", newline="")
+    writer = csv.DictWriter(out_file, fieldnames=fieldnames)
+    if write_header:
+        writer.writeheader()
+
     rows = []
     for dev_name, cm, F in devices:
         n_phys = cm.size()
@@ -105,15 +120,19 @@ def run_circuits(circuit_list, n_seeds, label):
                             copy.deepcopy(dag_phys), cm,
                             seed=seed, initial_cur=initial_cur, **kw,
                         )
-                    rows.append(dict(
+                    row = dict(
                         suite=label, device=dev_name, circuit=circ_name,
                         config=cfg_name, seed=seed,
                         swaps=swap_count(routed),
                         depth=routed.depth(),
                         lf_cost=circuit_lf_cost(routed, F),
-                    ))
+                    )
+                    writer.writerow(row)
+                    out_file.flush()
+                    rows.append(row)
             print(f"  [{label}] {dev_name} / {circ_name} done")
 
+    out_file.close()
     return pd.DataFrame(rows)
 
 
@@ -147,10 +166,20 @@ ext_large = [
 # ── Run ───────────────────────────────────────────────────────────────────────
 import argparse
 parser = argparse.ArgumentParser()
-parser.add_argument("--test",  action="store_true", help="Smoke test: 1 seed, 1 circuit per suite")
-parser.add_argument("--suite", choices=["redqueen", "ext_small", "ext_large", "all"], default="all",
+parser.add_argument("--test",   action="store_true", help="Smoke test: 1 seed, 1 circuit per suite")
+parser.add_argument("--suite",  choices=["redqueen", "ext_small", "ext_large", "all"], default="all",
                     help="Which suite to run (default: all)")
+parser.add_argument("--output",  default=None,
+                    help="Output filename (without .csv). Default: results_{suite}. "
+                         "Only valid when running a single suite.")
+parser.add_argument("--circuit", default=None,
+                    help="Run only this circuit (e.g. ising_n26). Must be used with --suite.")
 args = parser.parse_args()
+
+if args.output and args.suite == "all":
+    parser.error("--output can only be used with a specific --suite, not --suite all")
+if args.circuit and args.suite == "all":
+    parser.error("--circuit requires a specific --suite")
 
 suites = {
     "redqueen":  (redqueen_circuits, 20),
@@ -161,12 +190,16 @@ to_run = ["redqueen", "ext_small", "ext_large"] if args.suite == "all" else [arg
 
 for name in to_run:
     circuits_for_suite, n_seeds = suites[name]
+    if args.circuit:
+        circuits_for_suite = [(n, s) for n, s in circuits_for_suite if n == args.circuit]
+        if not circuits_for_suite:
+            parser.error(f"Circuit '{args.circuit}' not found in suite '{name}'")
     if args.test:
         circuits_for_suite = circuits_for_suite[:1]
         n_seeds = 1
         print(f"=== TEST: {name} (1 seed, 1 circuit) ===")
     else:
         print(f"=== {name} (n_seeds={n_seeds}) ===")
-    df = run_circuits(circuits_for_suite, n_seeds=n_seeds, label=name)
-    df.to_csv(f"results_{name}.csv", index=False)
-    print(df.groupby(["device","config"])[["swaps","lf_cost"]].mean().round(2))
+    out_path = f"{args.output}.csv" if args.output else None
+    df = run_circuits(circuits_for_suite, n_seeds=n_seeds, label=name, out_path=out_path)
+    print(df.groupby(["device","config"])[["swaps","depth","lf_cost"]].mean().round(2))
