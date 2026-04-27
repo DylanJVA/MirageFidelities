@@ -41,16 +41,30 @@ Results are saved to `Results/paper.csv` by default (`--output` to override). Fi
 
 ## Using FINESSE on your own circuit
 
+Pass any QASM file directly — it runs through all configs and topologies, same as the paper suite:
+
+```bash
+python FrequencyAllocationRuns.py --qasm my_circuit.qasm --seeds 20
+```
+
+Results go to `Results/<circuit_name>.csv`. You can also filter to a specific topology:
+
+```bash
+python FrequencyAllocationRuns.py --qasm my_circuit.qasm --topology square_ring --seeds 20
+```
+
+### Python API
+
+To use FINESSE directly in a script or notebook:
+
 ```python
 import numpy as np
 from qiskit import QuantumCircuit
 from qiskit.transpiler import CouplingMap
 from finesse import route, prepare_dag
 
-# Load your circuit
 qc = QuantumCircuit.from_qasm_file("my_circuit.qasm")
 
-# Define your device: coupling map and per-link fidelities
 edges = [(0,1), (1,2), (2,3), (3,0)]
 cm = CouplingMap(edges)
 
@@ -61,18 +75,17 @@ F[1,2] = F[2,1] = 0.991
 F[2,3] = F[3,2] = 0.987
 F[3,0] = F[0,3] = 0.994
 
-# Route
 dag = prepare_dag(qc, cm)
 routed_dag, n_swaps, final_layout = route(
     dag, cm,
     fidelity_matrix=F,
-    aggression=2,        # FINESSE (mirror gates + fidelity)
+    aggression=2,
     mode='lightsabre',
     seed=0,
 )
 ```
 
-`route()` returns the routed DAG, the number of SWAPs inserted, and the final logical→physical layout. To get a `QuantumCircuit` back, use `qiskit.converters.dag_to_circuit(routed_dag)`.
+`route()` returns the routed DAG, SWAP count, and final logical→physical layout. Convert back with `qiskit.converters.dag_to_circuit(routed_dag)`.
 
 ## Running in parallel on a server
 

@@ -341,7 +341,28 @@ if __name__ == "__main__":
     parser.add_argument("--topology",   default="all",
                         help="Comma-separated topology names to run, or 'all' (default). "
                              "Options: square_ring, square_ring_diag, square_ring_full, pentagon_ring")
+    parser.add_argument("--qasm",       default=None, metavar="FILE",
+                        help="Run a single QASM file through all configs and topologies. "
+                             "Circuit name defaults to the filename stem.")
     args = parser.parse_args()
+
+    if args.qasm:
+        import os
+        from qiskit import QuantumCircuit
+        name = os.path.splitext(os.path.basename(args.qasm))[0]
+        qc = QuantumCircuit.from_qasm_file(args.qasm)
+        circuits = [(name, qc)]
+        n_seeds = args.seeds if args.seeds is not None else 20
+        seed_list = [args.seed] if args.seed is not None else list(range(n_seeds))
+        out_path = f"{args.output}.csv" if args.output else f"Results/{name}.csv"
+        for wrap in [False, True]:
+            tag = "wrap" if wrap else "no-wrap"
+            print(f"=== {name} ({n_seeds} seeds, {tag}) ===")
+            run_circuits(circuits, seed_list=seed_list, label=name,
+                         out_path=out_path, wraparound=wrap)
+        df = pd.read_csv(out_path)
+        print(df.groupby(["device", "config"])[["swaps", "lf_cost"]].mean().round(2))
+        import sys; sys.exit(0)
 
     if args.merge:
         import glob
