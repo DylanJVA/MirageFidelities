@@ -39,17 +39,39 @@ python FrequencyAllocationRuns.py --paper --circuit dnn_n16 --seeds 5
 
 Results are saved to `Results/paper.csv` by default (`--output` to override). Figures are generated in `PaperPlots.ipynb`.
 
-## Adding a new circuit
-
-To benchmark a custom circuit, add it to `build_paper_circuits()` in `FrequencyAllocationRuns.py`:
+## Using FINESSE on your own circuit
 
 ```python
+import numpy as np
 from qiskit import QuantumCircuit
+from qiskit.transpiler import CouplingMap
+from finesse import route, prepare_dag
+
+# Load your circuit
 qc = QuantumCircuit.from_qasm_file("my_circuit.qasm")
-# or build it programmatically
+
+# Define your device: coupling map and per-link fidelities
+edges = [(0,1), (1,2), (2,3), (3,0)]
+cm = CouplingMap(edges)
+
+n = cm.size()
+F = np.ones((n, n))   # uniform fidelity — replace with real calibration data
+F[0,1] = F[1,0] = 0.99
+F[1,2] = F[2,1] = 0.97
+# ... etc
+
+# Route
+dag = prepare_dag(qc, cm)
+routed_dag, n_swaps, final_layout = route(
+    dag, cm,
+    fidelity_matrix=F,
+    aggression=2,        # FINESSE (mirror gates + fidelity)
+    mode='lightsabre',
+    seed=0,
+)
 ```
 
-Then add a `("name", qc)` tuple to the list. The circuit will be routed on all configured topologies across all seeds.
+`route()` returns the routed DAG, the number of SWAPs inserted, and the final logical→physical layout. To get a `QuantumCircuit` back, use `qiskit.converters.dag_to_circuit(routed_dag)`.
 
 ## Running in parallel on a server
 
