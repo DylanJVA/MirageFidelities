@@ -343,7 +343,7 @@ if __name__ == "__main__":
                         help="Stress benchmark: 6 medium QASMBench circuits, 5 seeds, both wraparound variants")
     parser.add_argument("--wraparound", action="store_true",
                         help="Add wraparound endpoint edges to the topology")
-    parser.add_argument("--toronto",     action="store_true",
+    parser.add_argument("--ibm",     action="store_true",
                         help="Run paper circuits on FakeTorontoV2 calibration topology")
     parser.add_argument("--merge",       action="store_true",
                         help="Merge per-seed CSVs (Results/paper_s*.csv) into Results/paper.csv and exit")
@@ -386,7 +386,7 @@ if __name__ == "__main__":
         print(df.groupby(["device","config"])[["swaps","lf_cost"]].mean().round(2))
         import sys; sys.exit(0)
 
-    if args.toronto:
+    if args.ibm:
         all_circuits = build_paper_circuits()
         if args.circuit:
             all_circuits = [(n, c) for n, c in all_circuits if n == args.circuit]
@@ -396,13 +396,13 @@ if __name__ == "__main__":
         n_seeds = args.seeds if args.seeds is not None else 20
         seed_list = [args.seed] if args.seed is not None else list(range(n_seeds))
         out_path = f"{args.output}.csv" if args.output else (
-            f"Results/toronto_s{args.seed}.csv" if args.seed is not None else "Results/toronto.csv"
+            f"Results/ibm_s{args.seed}.csv" if args.seed is not None else "Results/ibm.csv"
         )
         for backend_name, cm, F in build_ibm_topologies():
             n_phys = cm.size()
             circuits = [(name, qc) for name, qc in all_circuits if qc.num_qubits <= n_phys]
             print(f"=== IBM {backend_name} ({n_phys}q, {len(circuits)} circuits, seeds={seed_list}) ===")
-            run_circuits(circuits, seed_list=seed_list, label="toronto",
+            run_circuits(circuits, seed_list=seed_list, label="ibm",
                          out_path=out_path, wraparound=False, basis_gate='cx',
                          devices=[(backend_name, cm, F)])
         df = pd.read_csv(out_path)

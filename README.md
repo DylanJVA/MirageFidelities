@@ -22,11 +22,11 @@ pip install qiskit-ibm-runtime
 | Flag | Fabric | Description |
 |---|---|---|
 | `--paper` | SNAIL (sqrt_iswap) | 18-circuit paper suite on 4 modular topologies |
-| `--toronto` | IBM (CX/CZ) | Same circuits on Prague (33q), Brooklyn (65q), Washington (127q) |
+| `--ibm` | IBM (CX/CZ) | Same circuits on Prague (33q), Brooklyn (65q), Washington (127q) |
 | `--stress` | SNAIL | Denser QASMBench circuits for stress testing |
 | `--quick` | SNAIL | 3 small circuits, fast sanity check |
 
-`--toronto` requires `qiskit-ibm-runtime` and uses real IBM calibration data (heterogeneous fidelities from FakeProviderForBackendV2). The SNAIL modes use the physics-derived fidelity model from the paper.
+`--ibm` requires `qiskit-ibm-runtime` and uses real IBM calibration data (heterogeneous fidelities from FakeProviderForBackendV2). The SNAIL modes use the physics-derived fidelity model from the paper.
 
 Run with multiple seeds for statistical robustness (`--seeds N`). Each transpiler config is run independently per seed and the best result is post-selected:
 
@@ -111,7 +111,7 @@ routed_dag, n_swaps, final_layout = route(dag, cm, fidelity_matrix=F, basis_gate
 
 ## Running in parallel on a server
 
-For large runs, each seed can be dispatched independently and merged afterward. `run_parallel.sh <mode> <seeds> <jobs>` wraps the `--<mode>` flag from above — so `paper` corresponds to `--paper`, `toronto` to `--toronto`, etc.:
+For large runs, each seed can be dispatched independently and merged afterward. `run_parallel.sh <mode> <seeds> <jobs>` wraps the `--<mode>` flag from above — so `paper` corresponds to `--paper`, `ibm` to `--ibm`, etc.:
 
 ```bash
 nohup ./run_parallel.sh paper 20 $(nproc) > logs/master.log 2>&1 &

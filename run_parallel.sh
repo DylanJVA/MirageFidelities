@@ -1,12 +1,12 @@
 #!/bin/bash
 # Usage:
 #   ./run_parallel.sh paper   [seeds] [jobs]
-#   ./run_parallel.sh toronto [seeds] [jobs]
+#   ./run_parallel.sh ibm [seeds] [jobs]
 #
 # Examples:
 #   ./run_parallel.sh paper           # 20 seeds, all cores
 #   ./run_parallel.sh paper 20 8      # 20 seeds, 8 at a time
-#   ./run_parallel.sh toronto 20 8
+#   ./run_parallel.sh ibm 20 8
 
 MODE=${1:-paper}
 SEEDS=${2:-20}
@@ -49,17 +49,17 @@ echo "=== All seeds done ($(date +%H:%M:%S)) ==="
 if [ "$MODE" = "paper" ]; then
     echo "Merging Results/paper_s*.csv → Results/paper.csv"
     python FrequencyAllocationRuns.py --merge
-elif [ "$MODE" = "toronto" ]; then
-    echo "Merging Results/toronto_s*.csv → Results/toronto.csv"
+elif [ "$MODE" = "ibm" ]; then
+    echo "Merging Results/ibm_s*.csv → Results/ibm.csv"
     python - <<'EOF'
 import glob, pandas as pd, sys
-files = sorted(glob.glob("Results/toronto_s*.csv"))
+files = sorted(glob.glob("Results/ibm_s*.csv"))
 if not files:
     print("No per-seed files found."); sys.exit(1)
 df = pd.concat([pd.read_csv(f) for f in files], ignore_index=True)
 df = df.sort_values(["device","circuit","config","seed","wraparound"]).reset_index(drop=True)
-df.to_csv("Results/toronto.csv", index=False)
-print(f"Merged {len(files)} files → Results/toronto.csv ({len(df)} rows)")
+df.to_csv("Results/ibm.csv", index=False)
+print(f"Merged {len(files)} files → Results/ibm.csv ({len(df)} rows)")
 EOF
 fi
 
