@@ -55,10 +55,11 @@ edges = [(0,1), (1,2), (2,3), (3,0)]
 cm = CouplingMap(edges)
 
 n = cm.size()
-F = np.ones((n, n))   # uniform fidelity — replace with real calibration data
-F[0,1] = F[1,0] = 0.99
-F[1,2] = F[2,1] = 0.97
-# ... etc
+F = np.zeros((n, n))
+F[0,1] = F[1,0] = 0.996
+F[1,2] = F[2,1] = 0.991
+F[2,3] = F[3,2] = 0.987
+F[3,0] = F[0,3] = 0.994
 
 # Route
 dag = prepare_dag(qc, cm)
