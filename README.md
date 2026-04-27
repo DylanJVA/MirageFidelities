@@ -26,12 +26,12 @@ python FrequencyAllocationRuns.py --paper --seed 0
 
 Full parallel run on a server:
 ```bash
-nohup ./run_parallel.sh paper 20 $(nproc) > logs/master.log 2>&1 &
+nohup ./run_parallel.sh paper 20 $(nproc) > logs/master.log 2>&1 &  # 20 seeds
 ```
 
 Toronto benchmark:
 ```bash
-nohup ./run_parallel.sh toronto 20 $(nproc) > logs/master.log 2>&1 &
+nohup ./run_parallel.sh toronto 20 $(nproc) > logs/master.log 2>&1 &  # 20 seeds
 ```
 
 Results land in `Results/paper.csv` and `Results/toronto.csv`. Figures are generated in `PaperPlots.ipynb`.
