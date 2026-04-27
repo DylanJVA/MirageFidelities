@@ -24,14 +24,16 @@ Single seed (for testing):
 python FrequencyAllocationRuns.py --paper --seed 0
 ```
 
-Full parallel run on a server:
+Full parallel run on a server (arguments: mode, seeds, parallel jobs):
 ```bash
-nohup ./run_parallel.sh paper 20 $(nproc) > logs/master.log 2>&1 &  # 20 seeds
+nohup ./run_parallel.sh paper 20 $(nproc) > logs/master.log 2>&1 &
 ```
 
 Toronto benchmark:
 ```bash
-nohup ./run_parallel.sh toronto 20 $(nproc) > logs/master.log 2>&1 &  # 20 seeds
+nohup ./run_parallel.sh toronto 20 $(nproc) > logs/master.log 2>&1 &
 ```
+
+`nohup` keeps the job alive if your SSH session drops. Progress is logged to `logs/master.log` and per-seed logs in `logs/`.
 
 Results land in `Results/paper.csv` and `Results/toronto.csv`. Figures are generated in `PaperPlots.ipynb`.
