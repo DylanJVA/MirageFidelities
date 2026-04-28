@@ -150,40 +150,41 @@ def build_topology(wraparound=False):
         F_full[n//2, n-1]  = F_full[n-1, n//2]  = 0.975
         F_full[0, n-1]     = F_full[n-1, 0]     = 0.994
 
-    # ── Pentagon topology (36 qubits: 24 top-row + 12 floor) ────────────────────
-    # 12 house-shaped modules (5q, 7-edge) arranged in a ring.
-    # Layout: top qubits 0-23 (ring), floor qubits 24-35 (ring).
-    # Module k: tL=2k%24, apex=(2k+1)%24, tR=(2k+2)%24, fL=24+k, fR=24+(k+1)%12.
-    # Adjacent modules share one top qubit, one floor qubit, and one wall edge.
-    # UP (even k): tL-fL=.989, apex-fL=.980, apex-fR=.973, tR-fR=.968 (shared →)
-    # DOWN (odd k): tL-fL=.968 (shared ←), apex-fL=.973, apex-fR=.980, tR-fR=.989
-    # Shared edge fidelity: UP→DOWN junction = .968, DOWN→UP junction = .989 (consistent).
-    # All 12 modules have the same 7-fidelity set {.989,.980,.973,.968,.968,.962,.960}.
+    # ── Pentagon topology (36 qubits: top row 0-17, bottom row 18-35) ───────────
+    # 9 house-shaped modules (5q, 7-edge): 5 UP + 4 DOWN, alternating.
+    # All modules have the same fidelity set {.989,.980,.973,.968,.968,.962,.960}.
+    # DOWN is a true left-right mirror of UP.
+    # Top row: period-4 [.960, .962, .962, .960] so each module gets one of each.
+    # Bottom row: within-module = .968, inter-module junction = .962.
     n_pent = 36
     F_pentagon = np.zeros((n_pent, n_pent))
 
-    def _pe(i, j, f):
-        F_pentagon[i, j] = F_pentagon[j, i] = f
+    top_fid = [.960, .962, .962, .960]
+    for i in range(17):
+        F_pentagon[i, i+1] = F_pentagon[i+1, i] = top_fid[i % 4]
 
-    for k in range(12):
-        tL   = (2 * k)     % 24
-        apex = (2 * k + 1) % 24
-        tR   = (2 * k + 2) % 24
-        fL   = 24 + k
-        fR   = 24 + (k + 1) % 12
-        if k % 2 == 0:   # UP: best wall on left
-            _pe(tL, apex, .960);  _pe(apex, tR, .962);  _pe(fL, fR, .968)
-            _pe(tL, fL, .989);    _pe(apex, fL, .980);  _pe(apex, fR, .973);  _pe(tR, fR, .968)
-        else:             # DOWN: best wall on right (mirror)
-            _pe(tL, apex, .962);  _pe(apex, tR, .960);  _pe(fL, fR, .968)
-            _pe(tL, fL, .968);    _pe(apex, fL, .973);  _pe(apex, fR, .980);  _pe(tR, fR, .989)
+    for i in range(18, 35):
+        F_pentagon[i, i+1] = F_pentagon[i+1, i] = .968 if (i - 18) % 2 == 0 else .962
 
-    if not wraparound:
-        # Cut the three ring-closing connections at the M11→M0 junction:
-        # apex-tR of M11 (qubit 23→0), shared wall edge (qubit 0—24), floor ring-close (35—24)
-        F_pentagon[23,  0] = F_pentagon[ 0, 23] = 0.0
-        F_pentagon[ 0, 24] = F_pentagon[24,  0] = 0.0
-        F_pentagon[35, 24] = F_pentagon[24, 35] = 0.0
+    up_mods   = [(0,1,2,18,19),(4,5,6,22,23),(8,9,10,26,27),(12,13,14,30,31),(16,17,-1,34,35)]
+    down_mods = [(2,3,4,20,21),(6,7,8,24,25),(10,11,12,28,29),(14,15,16,32,33)]
+
+    for tL, apex, tR, fL, fR in up_mods:
+        F_pentagon[tL,fL] = F_pentagon[fL,tL] = .989
+        F_pentagon[apex,fL] = F_pentagon[fL,apex] = .980
+        F_pentagon[apex,fR] = F_pentagon[fR,apex] = .973
+        if tR >= 0:
+            F_pentagon[tR,fR] = F_pentagon[fR,tR] = .968
+    for tL, apex, tR, fL, fR in down_mods:
+        F_pentagon[tL,fL] = F_pentagon[fL,tL] = .968
+        F_pentagon[apex,fL] = F_pentagon[fL,apex] = .973
+        F_pentagon[apex,fR] = F_pentagon[fR,apex] = .980
+        F_pentagon[tR,fR] = F_pentagon[fR,tR] = .989
+
+    if wraparound:
+        F_pentagon[17,  0] = F_pentagon[ 0, 17] = .962   # apex-tR of last UP (ring close)
+        F_pentagon[ 0, 35] = F_pentagon[35,  0] = .968   # tR-fR of last UP (ring close)
+        F_pentagon[35, 18] = F_pentagon[18, 35] = .962   # bottom junction ring close
 
     cm_ring = CouplingMap([[i,j] for i in range(n) for j in range(n) if F_ring[i,j]      > 0])
     cm_diag = CouplingMap([[i,j] for i in range(n) for j in range(n) if F_diag[i,j]      > 0])
