@@ -60,6 +60,7 @@ df = pd.concat([pd.read_csv(f) for f in files], ignore_index=True)
 df = df.sort_values(["device","circuit","config","seed","wraparound"]).reset_index(drop=True)
 df.to_csv("Results/ibm.csv", index=False)
 print(f"Merged {len(files)} files → Results/ibm.csv ({len(df)} rows)")
+print(df.groupby(["device","config"])[["swaps","depth","lf_cost"]].mean().round(2).to_string())
 EOF
 fi
 

@@ -371,7 +371,7 @@ if __name__ == "__main__":
             run_circuits(circuits, seed_list=seed_list, label=name,
                          out_path=out_path, wraparound=wrap)
         df = pd.read_csv(out_path)
-        print(df.groupby(["device", "config"])[["swaps", "lf_cost"]].mean().round(2))
+        print(df.groupby(["device", "config"])[["swaps", "depth", "lf_cost"]].mean().round(2))
         import sys; sys.exit(0)
 
     if args.merge:
@@ -385,6 +385,37 @@ if __name__ == "__main__":
         df.to_csv("Results/paper.csv", index=False)
         print(f"Merged {len(files)} files → Results/paper.csv ({len(df)} rows)")
         print(df.groupby(["device","config"])[["swaps","depth","lf_cost"]].mean().round(2))
+        import sys; sys.exit(0)
+
+    if args.compare:
+        if args.ibm:
+            devs = build_ibm_topologies()
+            basis_gate = 'cx'
+            out_file = "compare_ibm.csv"
+        else:
+            devs = build_topology(wraparound=False)
+            basis_gate = 'sqrt_iswap'
+            out_file = "compare_check.csv"
+        quick_circuits = [
+            ("adder_n10",      fetch_qasmbench("adder_n10",      size="small")),
+            ("multiplier_n15", fetch_qasmbench("multiplier_n15", size="medium")),
+            ("bv_n19",         fetch_qasmbench("bv_n19",         size="medium")),
+        ]
+        compare_configs = [
+            ("SABRE",          dict(mode="lightsabre", aggression=0)),
+            ("MIRAGE",         dict(mode="lightsabre", aggression=2)),
+            ("FINESSE b=.25",  dict(mode="lightsabre", aggression=2, fidelity_mirror=True, edge_cost_weight=0.5, fidelity_blend=.25)),
+            ("FINESSE b=0.2", dict(mode="lightsabre", aggression=2, fidelity_mirror=True, edge_cost_weight=0.5, fidelity_blend=0.2)),
+            ("FINESSE b=0.15",  dict(mode="lightsabre", aggression=2, fidelity_mirror=True, edge_cost_weight=0.5, fidelity_blend=0.15)),
+            ("FINESSE b=0.1", dict(mode="lightsabre", aggression=2, fidelity_mirror=True, edge_cost_weight=0.5, fidelity_blend=0.1)),
+        ]
+        FIDELITY_COMPARE = {n for n, _ in compare_configs if "FINESSE" in n}
+        configs[:] = compare_configs
+        FIDELITY_CONFIGS.clear(); FIDELITY_CONFIGS.update(FIDELITY_COMPARE)
+        n_seeds = args.seeds if args.seeds is not None else 5
+        df = run_circuits(quick_circuits, seed_list=list(range(n_seeds)), label="compare",
+                          out_path=out_file, wraparound=False, basis_gate=basis_gate, devices=devs)
+        print(df.groupby(["device", "config"])[["swaps", "depth", "lf_cost"]].mean().round(3))
         import sys; sys.exit(0)
 
     if args.ibm:
@@ -409,7 +440,7 @@ if __name__ == "__main__":
         df = pd.read_csv(out_path)
         ran = {n for n, _ in all_circuits}
         df = df[df["circuit"].isin(ran)]
-        print(df.groupby(["device", "config"])[["swaps", "lf_cost"]].mean().round(2))
+        print(df.groupby(["device", "config"])[["swaps", "depth", "lf_cost"]].mean().round(2))
         import sys; sys.exit(0)
 
     if args.paper:
@@ -436,7 +467,7 @@ if __name__ == "__main__":
         df = pd.read_csv(out_path)
         ran = {n for n, _ in paper_circuits}
         df = df[df["circuit"].isin(ran)]
-        print(df.groupby(["device", "config"])[["swaps", "lf_cost"]].mean().round(2))
+        print(df.groupby(["device", "config"])[["swaps", "depth", "lf_cost"]].mean().round(2))
         import sys; sys.exit(0)
 
     if args.stress:
@@ -464,32 +495,7 @@ if __name__ == "__main__":
         df = pd.read_csv(out_path)
         ran = {n for n, _ in stress_circuits}
         df = df[df["circuit"].isin(ran)]
-        print(df.groupby(["device", "config"])[["swaps", "lf_cost"]].mean().round(2))
-        import sys; sys.exit(0)
-
-    if args.compare:
-        devs = build_topology(wraparound=False)
-        quick_circuits = [
-            ("adder_n10",      fetch_qasmbench("adder_n10",      size="small")),
-            ("multiplier_n15", fetch_qasmbench("multiplier_n15", size="medium")),
-            ("bv_n19",         fetch_qasmbench("bv_n19",         size="medium")),
-        ]
-        compare_configs = [
-            ("SABRE",                    dict(mode="lightsabre", aggression=0)),
-            ("MIRAGE",                   dict(mode="lightsabre", aggression=2)),
-            ("FASST (current)",          dict(mode="lightsabre", aggression=0)),
-            ("FINESSE (current)",        dict(mode="lightsabre", aggression=2, fidelity_mirror=True)),
-            ("FASST (sabre,w=0)",        dict(mode="sabre",      aggression=0)),
-            ("FINESSE (sabre,w=0)",      dict(mode="sabre",      aggression=2, fidelity_mirror=True)),
-            ("FASST (sabre,w=0.5)",      dict(mode="sabre",      aggression=0,  edge_cost_weight=0.5)),
-            ("FINESSE (sabre,w=0.5)",    dict(mode="sabre",      aggression=2,  fidelity_mirror=True, edge_cost_weight=0.5)),
-        ]
-        FIDELITY_COMPARE = {n for n, _ in compare_configs if "FASST" in n or "FINESSE" in n}
-        configs[:] = compare_configs
-        FIDELITY_CONFIGS.clear(); FIDELITY_CONFIGS.update(FIDELITY_COMPARE)
-        df = run_circuits(quick_circuits, seed_list=list(range(5)), label="compare",
-                          out_path="compare_check.csv", wraparound=False, devices=devs)
-        print(df.groupby(["device", "config"])[["swaps", "depth", "lf_cost"]].mean().round(3))
+        print(df.groupby(["device", "config"])[["swaps", "depth", "lf_cost"]].mean().round(2))
         import sys; sys.exit(0)
 
     if args.quick:

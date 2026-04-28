@@ -5,7 +5,7 @@ from .routing     import route
 from .inline_pass import InlineMirageSwap
 
 # ── Qiskit pipeline passes ────────────────────────────────────────────────────
-from .layout import FidelityLayout, FinesseLayout
+from .layout import FinesseLayout
 try:
     from .decompose import MirageDecompose
 except ModuleNotFoundError:
@@ -34,7 +34,6 @@ from .benchmarks import (
 __all__ = [
     "route",
     "InlineMirageSwap",
-    "FidelityLayout",
     "FinesseLayout",
     "MirageDecompose",
     "make_unroll_consolidate",

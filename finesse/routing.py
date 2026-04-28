@@ -233,145 +233,20 @@ def _layout_pass(
     reverse: bool = False,
     seed: int = 0,
 ) -> list[int]:
-    """
-    One SABRE routing pass used purely for layout warmup.
-
-    Runs the SABRE decay heuristic (basic term normalised by |F|) forward or
-    backward without emitting ops, valve logic, or mirror absorption.
-    Returns the final cur[] — the layout after all SWAPs and gate executions.
-
-    Usage (one bidirectional round):
-        cur = list(range(n))
-        cur = _layout_pass(dag, cm, cur, reverse=False, seed=s)
-        cur = _layout_pass(dag, cm, cur, reverse=True,  seed=s)
-    """
-    n    = dag.num_qubits()
-    dist = _build_dist(coupling_map)
-    rng  = np.random.default_rng(seed)
-    adj  = _build_adj(coupling_map, n)
-
-    cur = list(initial_cur)
-    rev = [0] * n
-    for orig, phys in enumerate(cur):
-        rev[phys] = orig
-
-    def swap_positions(p0: int, p1: int) -> None:
-        o0, o1 = rev[p0], rev[p1]
-        cur[o0], cur[o1] = p1, p0
-        rev[p0], rev[p1] = o1, o0
-
-    def cur_phys_of(node) -> tuple[int, ...]:
-        return tuple(cur[_orig_phys(dag, q)] for q in node.qargs)
-
-    pred_count, successors, nodes = _build_deps(dag, reverse=reverse)
-    executed: set[int] = set()
-    ready: set[int] = {nid for nid, c in pred_count.items() if c == 0}
-
-    def mark_executed(nid: int) -> None:
-        executed.add(nid)
-        ready.discard(nid)
-        for sid in successors[nid]:
-            pred_count[sid] -= 1
-            if pred_count[sid] == 0:
-                ready.add(sid)
-
-    def flush_executable() -> None:
-        changed = True
-        while changed:
-            changed = False
-            for nid in list(ready):
-                node = nodes[nid]
-                if len(node.qargs) != 2:
-                    mark_executed(nid); changed = True
-                else:
-                    ps = cur_phys_of(node)
-                    if dist[ps[0]][ps[1]] == 1.0:
-                        mark_executed(nid); changed = True
-
-    def front_layer_2q() -> list[int]:
-        return [nid for nid in ready if len(nodes[nid].qargs) == 2]
-
-    def extended_set(fl: list[int]) -> list[int]:
-        """BFS with predecessor-readiness tracking — see main routing function."""
-        to_visit = list(fl)
-        decremented: dict[int, int] = {}
-        ext: list[int] = []
-        i = 0
-        while i < len(to_visit) and len(ext) < EXTENDED_SET_SIZE:
-            nid = to_visit[i]
-            for sid in successors[nid]:
-                decremented[sid] = decremented.get(sid, 0) + 1
-                pred_count[sid] -= 1
-                if pred_count[sid] == 0:
-                    to_visit.append(sid)
-                    if len(nodes[sid].qargs) == 2:
-                        ext.append(sid)
-            i += 1
-        for sid, amt in decremented.items():
-            pred_count[sid] += amt
-        return ext
-
-    decay = np.ones(n)
-    num_search_steps: int = 0
-    flush_executable()
-
-    max_iter = dag.size() * n + 10_000
-    for _ in range(max_iter):
-        F = front_layer_2q()
-        if not F:
-            break
-
-        # obtain_SWAPs(F, G)
-        S: set[tuple[int, int]] = set()
-        for nid in F:
-            for q in nodes[nid].qargs:
-                p = cur[_orig_phys(dag, q)]
-                for nb in adj[p]:
-                    S.add((min(p, nb), max(p, nb)))
-        if not S:
-            break
-
-        E = extended_set(F)
-
-        # SWAP* = argmin H(SWAP, F, E, D, δ)   [paper normalises by |F|]
-        best_score = float('inf')
-        best_swaps: list[tuple[int, int]] = []
-        for (p0, p1) in S:
-            swap_positions(p0, p1)
-            h_basic = sum(
-                dist[cur_phys_of(nodes[nid])[0]][cur_phys_of(nodes[nid])[1]]
-                for nid in F
-            ) / len(F)
-            h_ext = (
-                sum(dist[cur_phys_of(nodes[nid])[0]][cur_phys_of(nodes[nid])[1]]
-                    for nid in E) / len(E)
-                if E else 0.0
-            )
-            score = max(decay[p0], decay[p1]) * (h_basic + EXTENDED_SET_WEIGHT * h_ext)
-            if score < best_score - SCORE_EPSILON:
-                best_score = score; best_swaps = [(p0, p1)]
-            elif abs(score - best_score) < SCORE_EPSILON:
-                best_swaps.append((p0, p1))
-            swap_positions(p0, p1)  # undo
-
-        p0, p1 = best_swaps[int(rng.integers(len(best_swaps)))]
-        swap_positions(p0, p1)
-
-        # Update decay: increment then check periodic reset
-        num_search_steps += 1
-        if num_search_steps >= DECAY_RESET:
-            decay[:] = 1.0
-            num_search_steps = 0
-        else:
-            decay[p0] += DECAY_RATE
-            decay[p1] += DECAY_RATE
-
-        gates_before = len(executed)
-        flush_executable()
-        if len(executed) > gates_before:
-            decay[:] = 1.0   # reset on gate execution; num_search_steps persists
-
-    return list(cur)
+    """One SABRE routing pass for layout warmup; no ops emitted."""
+    _, _, final_cur = route(
+        dag, coupling_map,
+        seed=seed,
+        mode='sabre',
+        aggression=0,
+        valve=False,
+        bidir_passes=0,
+        use_decay=True,
+        initial_cur=list(initial_cur),
+        reverse=reverse,
+        emit_ops=False,
+    )
+    return final_cur
 
 
 # ---------------------------------------------------------------------------
@@ -390,10 +265,13 @@ def route(
     fidelity_matrix: np.ndarray | None = None,
     fidelity_mirror: bool = True,
     edge_cost_weight: float = 0.0,
+    fidelity_blend: float = .25,
     use_decay: bool = False,
     initial_cur: list[int] | None = None,
     n_trials: int = 1,
-) -> tuple[DAGCircuit, int, list[int]]:
+    emit_ops: bool = True,
+    reverse: bool = False,
+) -> tuple[DAGCircuit | None, int, list[int]]:
     """
     SABRE / LightSABRE / MIRAGE / FINESSE routing.
 
@@ -468,8 +346,9 @@ def route(
                 aggression=aggression, seed=seed + i, mode=mode,
                 valve=valve, bidir_passes=bidir_passes, basis_gate=basis_gate,
                 fidelity_matrix=fidelity_matrix, fidelity_mirror=fidelity_mirror,
-                edge_cost_weight=edge_cost_weight, use_decay=use_decay,
-                initial_cur=initial_cur, n_trials=1,
+                edge_cost_weight=edge_cost_weight, fidelity_blend=fidelity_blend,
+                use_decay=use_decay, initial_cur=initial_cur, n_trials=1,
+                emit_ops=emit_ops, reverse=reverse,
             )
             score = (
                 circuit_lf_cost(t_dag, fidelity_matrix, basis_gate)
@@ -484,6 +363,8 @@ def route(
         valve = (mode == 'lightsabre')
     if bidir_passes is None:
         bidir_passes = 0
+    if not emit_ops:
+        valve = False  # valve backtracks via ops indices; incompatible with emit_ops=False
 
     rng  = np.random.default_rng(seed)
     n    = dag.num_qubits()
@@ -500,7 +381,15 @@ def route(
     # Used in H_dist when fidelity is active (same lf units as L_raw).
     dist_fid: np.ndarray | None = None
     if L_raw is not None:
-        dist_fid = _build_dist_fid(coupling_map, L_raw)
+        d_fid = _build_dist_fid(coupling_map, L_raw)
+        if fidelity_blend < 1.0:
+            # Normalise each matrix to [0,1] range then blend, so hop count
+            # and lf cost are on the same scale before mixing.
+            d_hop_norm = dist / dist.max() if dist.max() > 0 else dist
+            d_fid_norm = d_fid / d_fid[d_fid < np.inf].max() if np.any(d_fid < np.inf) else d_fid
+            dist_fid = (1.0 - fidelity_blend) * d_hop_norm + fidelity_blend * d_fid_norm
+        else:
+            dist_fid = d_fid
 
     # ------------------------------------------------------------------
     # §IV.C / Fig. 5 — Reverse traversal for initial mapping
@@ -538,7 +427,7 @@ def route(
     # Dependency tracking — pred_count[nid] = unexecuted predecessors of gate nid
     # ready = {nid : pred_count[nid] == 0} = the current front layer F ∪ 1Q gates
     # ------------------------------------------------------------------
-    pred_count, successors, nodes = _build_deps(dag)
+    pred_count, successors, nodes = _build_deps(dag, reverse=reverse)
     executed: set[int] = set()
     ready: set[int] = {nid for nid, c in pred_count.items() if c == 0}
 
@@ -556,7 +445,8 @@ def route(
     ops: list[tuple] = []
 
     def emit(op, phys_qargs: tuple, clbits: tuple = ()) -> None:
-        ops.append((op, phys_qargs, clbits))
+        if emit_ops:
+            ops.append((op, phys_qargs, clbits))
 
     def _clbit_indices(node) -> tuple:
         return tuple(dag.find_bit(c).index for c in node.cargs)
@@ -904,6 +794,9 @@ def route(
     # ------------------------------------------------------------------
     # Build output DAG
     # ------------------------------------------------------------------
+    if not emit_ops:
+        return None, valve_fires, list(cur)
+
     qc = QuantumCircuit(dag.num_qubits(), dag.num_clbits())
     for op, phys_qargs, clbits in ops:
         qc.append(op, list(phys_qargs), list(clbits))
