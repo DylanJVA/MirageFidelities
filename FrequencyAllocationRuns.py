@@ -209,8 +209,8 @@ def build_topology(wraparound=False):
 configs = [
     ("Standard SABRE",  dict(mode="lightsabre", aggression=0)),
     ("Standard MIRAGE", dict(mode="lightsabre", aggression=2)),
-    ("FASST",           dict(mode="lightsabre", aggression=0)),
-    ("FINESSE",         dict(mode="lightsabre", aggression=2,  fidelity_mirror=True)),
+    ("FASST",           dict(mode="lightsabre", aggression=0,  edge_cost_weight=0.5)),
+    ("FINESSE",         dict(mode="lightsabre", aggression=2,  fidelity_mirror=True, edge_cost_weight=0.5)),
 ]
 FIDELITY_CONFIGS = {"FASST", "FINESSE"}
 
@@ -352,6 +352,8 @@ if __name__ == "__main__":
     parser.add_argument("--qasm",       default=None, metavar="FILE",
                         help="Run a single QASM file through all configs and topologies. "
                              "Circuit name defaults to the filename stem.")
+    parser.add_argument("--compare",    action="store_true",
+                        help="Compare 3 FASST/FINESSE variants on quick circuits to isolate config changes")
     args = parser.parse_args()
 
     if args.qasm:
@@ -463,6 +465,31 @@ if __name__ == "__main__":
         ran = {n for n, _ in stress_circuits}
         df = df[df["circuit"].isin(ran)]
         print(df.groupby(["device", "config"])[["swaps", "lf_cost"]].mean().round(2))
+        import sys; sys.exit(0)
+
+    if args.compare:
+        devs = build_topology(wraparound=False)
+        quick_circuits = [
+            ("adder_n10",      fetch_qasmbench("adder_n10",      size="small")),
+            ("multiplier_n15", fetch_qasmbench("multiplier_n15", size="medium")),
+            ("bv_n19",         fetch_qasmbench("bv_n19",         size="medium")),
+        ]
+        compare_configs = [
+            ("SABRE",                    dict(mode="lightsabre", aggression=0)),
+            ("MIRAGE",                   dict(mode="lightsabre", aggression=2)),
+            ("FASST (current)",          dict(mode="lightsabre", aggression=0)),
+            ("FINESSE (current)",        dict(mode="lightsabre", aggression=2, fidelity_mirror=True)),
+            ("FASST (sabre,w=0)",        dict(mode="sabre",      aggression=0)),
+            ("FINESSE (sabre,w=0)",      dict(mode="sabre",      aggression=2, fidelity_mirror=True)),
+            ("FASST (sabre,w=0.5)",      dict(mode="sabre",      aggression=0,  edge_cost_weight=0.5)),
+            ("FINESSE (sabre,w=0.5)",    dict(mode="sabre",      aggression=2,  fidelity_mirror=True, edge_cost_weight=0.5)),
+        ]
+        FIDELITY_COMPARE = {n for n, _ in compare_configs if "FASST" in n or "FINESSE" in n}
+        configs[:] = compare_configs
+        FIDELITY_CONFIGS.clear(); FIDELITY_CONFIGS.update(FIDELITY_COMPARE)
+        df = run_circuits(quick_circuits, seed_list=list(range(5)), label="compare",
+                          out_path="compare_check.csv", wraparound=False, devices=devs)
+        print(df.groupby(["device", "config"])[["swaps", "depth", "lf_cost"]].mean().round(3))
         import sys; sys.exit(0)
 
     if args.quick:
