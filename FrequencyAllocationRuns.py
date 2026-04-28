@@ -382,7 +382,7 @@ if __name__ == "__main__":
         df = df.sort_values(["device","circuit","config","seed","wraparound"]).reset_index(drop=True)
         df.to_csv("Results/paper.csv", index=False)
         print(f"Merged {len(files)} files → Results/paper.csv ({len(df)} rows)")
-        print(df.groupby(["device","config"])[["swaps","lf_cost"]].mean().round(2))
+        print(df.groupby(["device","config"])[["swaps","depth","lf_cost"]].mean().round(2))
         import sys; sys.exit(0)
 
     if args.ibm:
@@ -476,7 +476,7 @@ if __name__ == "__main__":
         quick_out = f"{args.output}.csv" if args.output else "quick_check.csv"
         df = run_circuits(quick_circuits, seed_list=list(range(3)), label="quick",
                           out_path=quick_out, wraparound=args.wraparound, devices=devs)
-        print(df.groupby(["device","config"])[["swaps","lf_cost"]].mean().round(2))
+        print(df.groupby(["device","config"])[["swaps","depth","lf_cost"]].mean().round(2))
         import sys; sys.exit(0)
 
     if args.medium:
@@ -493,7 +493,7 @@ if __name__ == "__main__":
         medium_out = f"{args.output}.csv" if args.output else "medium_check.csv"
         df = run_circuits(medium_circuits, seed_list=list(range(3)), label="medium",
                           out_path=medium_out, wraparound=args.wraparound, devices=devs)
-        print(df.groupby(["device","config"])[["swaps","lf_cost"]].mean().round(2))
+        print(df.groupby(["device","config"])[["swaps","depth","lf_cost"]].mean().round(2))
         import sys; sys.exit(0)
 
     if args.output and args.suite == "all":
