@@ -265,7 +265,7 @@ def route(
     fidelity_matrix: np.ndarray | None = None,
     fidelity_mirror: bool = True,
     edge_cost_weight: float = 0.0,
-    fidelity_blend: float = .25,
+    fidelity_blend: float = 1.0,
     use_decay: bool = False,
     initial_cur: list[int] | None = None,
     n_trials: int = 1,
@@ -383,11 +383,11 @@ def route(
     if L_raw is not None:
         d_fid = _build_dist_fid(coupling_map, L_raw)
         if fidelity_blend < 1.0:
-            # Normalise each matrix to [0,1] range then blend, so hop count
-            # and lf cost are on the same scale before mixing.
-            d_hop_norm = dist / dist.max() if dist.max() > 0 else dist
-            d_fid_norm = d_fid / d_fid[d_fid < np.inf].max() if np.any(d_fid < np.inf) else d_fid
-            dist_fid = (1.0 - fidelity_blend) * d_hop_norm + fidelity_blend * d_fid_norm
+            # Blend raw hop-count and lf-weighted distances without normalising.
+            # Normalising squashes distances to [0,1], making them tiny relative
+            # to the raw-lf edge_penalty on large/noisy backends (e.g. Washington
+            # 127q), which causes the edge penalty to dominate and break routing.
+            dist_fid = (1.0 - fidelity_blend) * dist + fidelity_blend * d_fid
         else:
             dist_fid = d_fid
 

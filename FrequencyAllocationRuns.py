@@ -92,9 +92,15 @@ def _ibm_topology(backend_name: str):
     return (backend_name, cm, F)
 
 def build_ibm_topologies():
-    """Three IBM backends: 33q Prague (CZ), 65q Brooklyn (CX), 127q Washington (CX)."""
+    """Three IBM backends spanning low→high fidelity heterogeneity.
+
+    fake_toronto:    27q, std=0.024, range=0.122 — small, heterogeneous
+    fake_sydney:     27q, std=0.027, range=0.146 — small, most heterogeneous
+    fake_washington: 127q, std=0.017, range=0.098 — large, heterogeneous
+    Note: circuits with more qubits than the backend are skipped automatically.
+    """
     return [_ibm_topology(name) for name in
-            ("fake_prague", "fake_brooklyn", "fake_washington")]
+            ("fake_toronto", "fake_sydney", "fake_washington")]
 
 
 # ── Topology ──────────────────────────────────────────────────────────────────
@@ -402,12 +408,12 @@ if __name__ == "__main__":
             ("bv_n19",         fetch_qasmbench("bv_n19",         size="medium")),
         ]
         compare_configs = [
-            ("SABRE",          dict(mode="lightsabre", aggression=0)),
-            ("MIRAGE",         dict(mode="lightsabre", aggression=2)),
-            ("FINESSE b=.25",  dict(mode="lightsabre", aggression=2, fidelity_mirror=True, edge_cost_weight=0.5, fidelity_blend=.25)),
-            ("FINESSE b=0.2", dict(mode="lightsabre", aggression=2, fidelity_mirror=True, edge_cost_weight=0.5, fidelity_blend=0.2)),
+            ("SABRE",           dict(mode="lightsabre", aggression=0)),
+            ("MIRAGE",          dict(mode="lightsabre", aggression=2)),
+            ("FINESSE b=1.0",   dict(mode="lightsabre", aggression=2, fidelity_mirror=True, edge_cost_weight=0.5, fidelity_blend=1.0)),
+            ("FINESSE b=0.25",  dict(mode="lightsabre", aggression=2, fidelity_mirror=True, edge_cost_weight=0.5, fidelity_blend=0.25)),
             ("FINESSE b=0.15",  dict(mode="lightsabre", aggression=2, fidelity_mirror=True, edge_cost_weight=0.5, fidelity_blend=0.15)),
-            ("FINESSE b=0.1", dict(mode="lightsabre", aggression=2, fidelity_mirror=True, edge_cost_weight=0.5, fidelity_blend=0.1)),
+            ("FINESSE b=0.1",   dict(mode="lightsabre", aggression=2, fidelity_mirror=True, edge_cost_weight=0.5, fidelity_blend=0.1)),
         ]
         FIDELITY_COMPARE = {n for n, _ in compare_configs if "FINESSE" in n}
         configs[:] = compare_configs

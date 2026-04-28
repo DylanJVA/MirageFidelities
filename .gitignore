@@ -1,5 +1,5 @@
 circuits/redqueen/
-circuits/qasmbench/medium/vqe_n24/
+circuits/qasmbench/
 __pycache__/
 *.pyc
 .ipynb_checkpoints/
