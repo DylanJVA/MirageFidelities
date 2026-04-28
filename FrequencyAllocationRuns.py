@@ -119,7 +119,7 @@ def build_topology(wraparound=False):
             F_full[i, n//2+i+1] = F_full[n//2+i+1, i] = 0.975
             if i > 0:
                 F_full[i, n//2+i-1] = F_full[n//2+i-1, i] = 0.994
-            if i & 2 == 0:
+            if i % 2 == 0:
                 F_ring[i, n//2+i] = F_ring[n//2+i, i] = .995
                 F_diag[i, n//2+i] = F_diag[n//2+i, i] = .985
                 F_full[i, n//2+i] = F_full[n//2+i, i] = .977
@@ -130,7 +130,7 @@ def build_topology(wraparound=False):
         elif i >= n//2 and i < n - 1:   # bottom row edges (i=16..30)
             F_ring[i,i+1] = F_ring[i+1,i] = 0.994
             F_diag[i,i+1] = F_diag[i+1,i] = 0.986
-            F_full[i,i+1] = F_full[i+1,i] = 0.989
+            F_full[i,i+1] = F_full[i+1,i] = 0.988
 
     # rung for top qubit 15 → bottom qubit 31 (skipped by loop above)
     F_ring[15, 31] = F_ring[31, 15] = .995
@@ -150,55 +150,40 @@ def build_topology(wraparound=False):
         F_full[n//2, n-1]  = F_full[n-1, n//2]  = 0.975
         F_full[0, n-1]     = F_full[n-1, 0]     = 0.994
 
-    # ── Pentagon topology (36 qubits: top row 0-17, bottom row 18-35) ─────────
+    # ── Pentagon topology (36 qubits: 24 top-row + 12 floor) ────────────────────
+    # 12 house-shaped modules (5q, 7-edge) arranged in a ring.
+    # Layout: top qubits 0-23 (ring), floor qubits 24-35 (ring).
+    # Module k: tL=2k%24, apex=(2k+1)%24, tR=(2k+2)%24, fL=24+k, fR=24+(k+1)%12.
+    # Adjacent modules share one top qubit, one floor qubit, and one wall edge.
+    # UP (even k): tL-fL=.989, apex-fL=.980, apex-fR=.973, tR-fR=.968 (shared →)
+    # DOWN (odd k): tL-fL=.968 (shared ←), apex-fL=.973, apex-fR=.980, tR-fR=.989
+    # Shared edge fidelity: UP→DOWN junction = .968, DOWN→UP junction = .989 (consistent).
+    # All 12 modules have the same 7-fidelity set {.989,.980,.973,.968,.968,.962,.960}.
     n_pent = 36
     F_pentagon = np.zeros((n_pent, n_pent))
 
-    # top row edges (0-1, 1-2, ..., 16-17)
-    # period-4 pattern: [UP-left, UP-right, DOWN-left, DOWN-right]
-    # ensures every UP house has roof (.960,.962) and every DOWN house has wings (.968,.960)
-    top_fid = [.960, .962, .968, .960]
-    for i in range(17):
-        F_pentagon[i, i+1] = F_pentagon[i+1, i] = top_fid[i % 4]
+    def _pe(i, j, f):
+        F_pentagon[i, j] = F_pentagon[j, i] = f
 
-    # bottom row edges: period-2 so every module floor = .968, junctions = .962
-    for i in range(18, 35):
-        F_pentagon[i, i+1] = F_pentagon[i+1, i] = .968 if (i - 18) % 2 == 0 else .962
+    for k in range(12):
+        tL   = (2 * k)     % 24
+        apex = (2 * k + 1) % 24
+        tR   = (2 * k + 2) % 24
+        fL   = 24 + k
+        fR   = 24 + (k + 1) % 12
+        if k % 2 == 0:   # UP: best wall on left
+            _pe(tL, apex, .960);  _pe(apex, tR, .962);  _pe(fL, fR, .968)
+            _pe(tL, fL, .989);    _pe(apex, fL, .980);  _pe(apex, fR, .973);  _pe(tR, fR, .968)
+        else:             # DOWN: best wall on right (mirror)
+            _pe(tL, apex, .962);  _pe(apex, tR, .960);  _pe(fL, fR, .968)
+            _pe(tL, fL, .968);    _pe(apex, fL, .973);  _pe(apex, fR, .980);  _pe(tR, fR, .989)
 
-    # diagonal/wall connections — explicit per module so all UP houses are identical
-    # and all DOWN houses are identical
-    # UP:   wall_L=.989, apex→fL=.98,  apex→fR=.973, wall_R=.968
-    # DOWN: wall_L=.98,  apex→fL=.973, apex→fR=.989, wall_R=.98
-    up_mods = [
-        ( 0,  1,  2, 18, 19),
-        ( 4,  5,  6, 22, 23),
-        ( 8,  9, 10, 26, 27),
-        (12, 13, 14, 30, 31),
-        (16, 17, -1, 34, 35),   # last module — no right wall without wraparound
-    ]
-    down_mods = [
-        ( 2,  3,  4, 20, 21),
-        ( 6,  7,  8, 24, 25),
-        (10, 11, 12, 28, 29),
-        (14, 15, 16, 32, 33),
-    ]
-    for tL, apex, tR, fL, fR in up_mods:
-        F_pentagon[tL,   fL] = F_pentagon[fL,   tL]   = .989
-        F_pentagon[apex, fL] = F_pentagon[fL,   apex]  = .98
-        F_pentagon[apex, fR] = F_pentagon[fR,   apex]  = .973
-        if tR >= 0:
-            F_pentagon[tR, fR] = F_pentagon[fR, tR] = .968
-    for tL, apex, tR, fL, fR in down_mods:
-        F_pentagon[tL,   fL] = F_pentagon[fL,   tL]   = .98
-        F_pentagon[apex, fL] = F_pentagon[fL,   apex]  = .973
-        F_pentagon[apex, fR] = F_pentagon[fR,   apex]  = .989
-        if tR >= 0:
-            F_pentagon[tR, fR] = F_pentagon[fR, tR] = .98
-
-    if wraparound:
-        F_pentagon[17,  0] = F_pentagon[ 0, 17] = .968   # top row close
-        F_pentagon[35, 18] = F_pentagon[18, 35] = .96    # bottom row close
-        F_pentagon[35,  0] = F_pentagon[ 0, 35] = .973   # diagonal
+    if not wraparound:
+        # Cut the three ring-closing connections at the M11→M0 junction:
+        # apex-tR of M11 (qubit 23→0), shared wall edge (qubit 0—24), floor ring-close (35—24)
+        F_pentagon[23,  0] = F_pentagon[ 0, 23] = 0.0
+        F_pentagon[ 0, 24] = F_pentagon[24,  0] = 0.0
+        F_pentagon[35, 24] = F_pentagon[24, 35] = 0.0
 
     cm_ring = CouplingMap([[i,j] for i in range(n) for j in range(n) if F_ring[i,j]      > 0])
     cm_diag = CouplingMap([[i,j] for i in range(n) for j in range(n) if F_diag[i,j]      > 0])
