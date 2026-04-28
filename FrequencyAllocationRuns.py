@@ -168,8 +168,6 @@ def build_topology(wraparound=False):
 
     for module in modules:
         for edge in pentagon:
-            print(edge[0],edge[1],pentagon[edge],end="\t")
-            print(module[edge[0]],module[edge[1]],pentagon[edge])
             F_pent[module[edge[0]],module[edge[1]]]=pentagon[(edge[0],edge[1])]
     if wraparound:
         #todo
@@ -385,10 +383,10 @@ if __name__ == "__main__":
         compare_configs = [
             ("SABRE",           dict(mode="lightsabre", aggression=0)),
             ("MIRAGE",          dict(mode="lightsabre", aggression=2)),
-            ("FINESSE b=1.0",   dict(mode="lightsabre", aggression=2, fidelity_mirror=True, edge_cost_weight=0.5, fidelity_blend=1.0)),
-            ("FINESSE b=0.25",  dict(mode="lightsabre", aggression=2, fidelity_mirror=True, edge_cost_weight=0.5, fidelity_blend=0.25)),
-            ("FINESSE b=0.15",  dict(mode="lightsabre", aggression=2, fidelity_mirror=True, edge_cost_weight=0.5, fidelity_blend=0.15)),
-            ("FINESSE b=0.1",   dict(mode="lightsabre", aggression=2, fidelity_mirror=True, edge_cost_weight=0.5, fidelity_blend=0.1)),
+            ("FINESSE b=.60",   dict(mode="lightsabre", aggression=2, fidelity_mirror=True, edge_cost_weight=0.5, fidelity_blend=.60)),
+            ("FINESSE b=0.55",  dict(mode="lightsabre", aggression=2, fidelity_mirror=True, edge_cost_weight=0.5, fidelity_blend=0.55)),
+            ("FINESSE b=0.5",  dict(mode="lightsabre", aggression=2, fidelity_mirror=True, edge_cost_weight=0.5, fidelity_blend=0.5)),
+            ("FINESSE b=0.45",   dict(mode="lightsabre", aggression=2, fidelity_mirror=True, edge_cost_weight=0.5, fidelity_blend=0.45)),
         ]
         FIDELITY_COMPARE = {n for n, _ in compare_configs if "FINESSE" in n}
         configs[:] = compare_configs

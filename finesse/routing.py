@@ -265,7 +265,7 @@ def route(
     fidelity_matrix: np.ndarray | None = None,
     fidelity_mirror: bool = True,
     edge_cost_weight: float = 0.0,
-    fidelity_blend: float = 1.0,
+    fidelity_blend: float = .5,
     use_decay: bool = False,
     initial_cur: list[int] | None = None,
     n_trials: int = 1,
@@ -645,8 +645,9 @@ def route(
         # SABRE normalises the basic term by |F|; LightSABRE does not.
         basic = (F_sum / len(F)) if mode == 'sabre' else F_sum
         decay_factor = float(max(decay[p0], decay[p1])) if use_decay else 1.0
-        edge_penalty = (edge_cost_weight * DIST_FID_SWAP_WEIGHT * float(L_raw[p0, p1])
-                        if dist_fid is not None and edge_cost_weight > 0.0 else 0.0)
+        edge_penalty=0
+        #edge_penalty = (edge_cost_weight * DIST_FID_SWAP_WEIGHT * float(L_raw[p0, p1])
+        #                if dist_fid is not None and edge_cost_weight > 0.0 else 0.0)
         H_dist = decay_factor * (basic + W * (E_sum / len(E) if E else 0.0) + edge_penalty)
 
         swap_positions(p0, p1)  # undo simulation
