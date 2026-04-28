@@ -33,7 +33,7 @@ for seed in $(seq 0 $((SEEDS - 1))); do
     done
 
     echo "  launching seed $seed ($(date +%H:%M:%S))"
-    python FrequencyAllocationRuns.py --$MODE --seed $seed \
+    python3 FrequencyAllocationRuns.py --$MODE --seed $seed \
         > logs/${MODE}_s${seed}.log 2>&1 &
     pids+=($!)
 done
@@ -48,10 +48,10 @@ echo "=== All seeds done ($(date +%H:%M:%S)) ==="
 
 if [ "$MODE" = "paper" ]; then
     echo "Merging Results/paper_s*.csv → Results/paper.csv"
-    python FrequencyAllocationRuns.py --merge
+    python3 FrequencyAllocationRuns.py --merge
 elif [ "$MODE" = "ibm" ]; then
     echo "Merging Results/ibm_s*.csv → Results/ibm.csv"
-    python - <<'EOF'
+    python3 - <<'EOF'
 import glob, pandas as pd, sys
 files = sorted(glob.glob("Results/ibm_s*.csv"))
 if not files:
