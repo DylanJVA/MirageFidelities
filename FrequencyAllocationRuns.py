@@ -311,7 +311,6 @@ ext_small = [
 
 ext_large = [
     ("ising_n26",      fetch_qasmbench("ising_n26", size="medium")),
-    ("vqe_n24",        fetch_qasmbench("vqe_n24",   size="medium")),
     ("qaoa_n25_p3",    make_qaoa(25, 3)),
     ("random_n32_d200",random_circuit(32, 200, max_operands=2, seed=42)),
 ]
